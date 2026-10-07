@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Lead Finder Local</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
+  /* ===== LOCK SCREEN ===== */
+  #lockScreen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  
+  #lockScreen.unlocked {
+    opacity: 0;
+    transform: scale(1.05);
+    pointer-events: none;
+  }
+
+  .lock-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    font-size: 32px;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .lock-title {
+    color: #f8fafc;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .lock-subtitle {
+    color: #94a3b8;
+    font-size: 15px;
+    margin-bottom: 32px;
+  }
+
+  .pin-display {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    background: transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pin-dot.filled {
+    background: #38bdf8;
+    border-color: #38bdf8;
+    transform: scale(1.15);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  }
+
+  .pin-dot.error {
+    background: #ef4444;
+    border-color: #ef4444;
+    animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+  }
+
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 320px;
+    width: 100%;
+  }
+
+  .key {
+    aspect-ratio: 1.5;
+    max-height: 72px;
+    border: none;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.08);
+    color: #f8fafc;
+    font-size: 26px;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+  }
+
+  .key:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(0.94);
+  }
+
+  .key.empty {
+    background: transparent;
+    border: none;
+    cursor: default;
+  }
+
+  .key.delete {
+    font-size: 20px;
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+  }
+
+  .key.delete:active {
+    background: rgba(239, 68, 68, 0.3);
+  }
+
+  .lock-error {
+    color: #f87171;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 20px;
+    min-height: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .lock-error.visible {
+    opacity: 1;
+  }
+
+  /* ===== MAIN APP ===== */
+  #mainApp {
+    display: none;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  #mainApp.visible {
+    display: block;
+    animation: fadeIn 0.5s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding-top: 20px;
+  }
+
+  .header {
+    text-align: center;
+    padding: 20px 20px 30px;
+    color: #fff;
+  }
+
+  .header h1 {
+    font-size: clamp(26px, 6vw, 38px);
+    font-weight: 800;
+    margin-bottom: 10px;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    letter-spacing: -0.5px;
+  }
+
+  .header p {
+    font-size: clamp(15px, 3.5vw, 17px);
+    opacity: 0.9;
+    line-height: 1.5;
+  }
+
+  .card {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    margin-bottom: 24px;
+  }
+
+  .form-group {
+    margin-bottom: 24px;
+  }
+
+  .form-group:last-of-type {
+    margin-bottom: 32px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    color: #0f172a;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .form-group input::placeholder {
+    color: #94a3b8;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102,126,234,0.15);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    box-shadow: 0 10px 25px -5px rgba(102,126,234,0.4);
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px -5px rgba(102,126,234,0.5);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(8px);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 480px) {
+    .card { padding: 24px 20px; border-radius: 20px; }
+    .keypad { gap: 10px; max-width: 280px; }
+    .key { font-size: 24px; border-radius: 14px; max-height: 64px; }
+    .pin-display { gap: 12px; }
+  }
+</style>
+</head>
+<body oncontextmenu="return false;">
+
+<!-- ===== LOCK SCREEN ===== -->
+<div id="lockScreen">
+  <div class="lock-icon">🔒</div>
+  <div class="lock-title">Accesso Protetto</div>
+  <div class="lock-subtitle">Inserisci il PIN a 4 cifre</div>
+  
+  <div class="pin-display">
+    <div class="pin-dot" data-index="0"></div>
+    <div class="pin-dot" data-index="1"></div>
+    <div class="pin-dot" data-index="2"></div>
+    <div class="pin-dot" data-index="3"></div>
+  </div>
+
+  <div class="keypad" id="keypad">
+    <button class="key" data-num="1">1</button>
+    <button class="key" data-num="2">2</button>
+    <button class="key" data-num="3">3</button>
+    <button class="key" data-num="4">4</button>
+    <button class="key" data-num="5">5</button>
+    <button class="key" data-num="6">6</button>
+    <button class="key" data-num="7">7</button>
+    <button class="key" data-num="8">8</button>
+    <button class="key" data-num="9">9</button>
+    <button class="key empty"></button>
+    <button class="key" data-num="0">0</button>
+    <button class="key delete" id="deleteKey">⌫</button>
+  </div>
+
+  <div class="lock-error" id="lockError">PIN errato. Riprova.</div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="mainApp">
+  <div class="container">
+    <div class="header">
+      <h1>Lead Finder Local</h1>
+      <p>Estrai contatti da Google Maps ed Instagram direttamente sullo Sheet</p>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label for="category">Categoria / Attività</label>
+        <input type="text" id="category" placeholder="Es. Ristoranti, Dentisti..." autocomplete="off" autocapitalize="words">
+      </div>
+
+      <div class="form-group">
+        <label for="city">Città</label>
+        <input type="text" id="city" placeholder="Es. Milano, Roma..." autocomplete="off" autocapitalize="words">
+      </div>
+
+      <button class="btn-primary" id="startSearch">Avvia Ricerca</button>
+    </div>
+
+    <a href="https://docs.google.com/spreadsheets/d/1jPheamvu0wCP4SkDx3TUffJH8X8hOQecDBByp3sREEs/edit?gid=0#gid=0" 
+       target="_blank" rel="noopener" class="btn-secondary">
+      📊 Apri Google Sheet dei risultati ↗
+    </a>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== HASH SHA-256 DEL PIN "1706" (VERIFICATO) =====
+  const CORRECT_PIN_HASH = 'c08ee2a296e9cc80f185cf84596b17f6dc4e29df05c403f2b0fb077876289cb8';
+  
+  let pinInput = '';
+  const pinDots = document.querySelectorAll('.pin-dot');
+  const lockScreen = document.getElementById('lockScreen');
+  const mainApp = document.getElementById('mainApp');
+  const lockError = document.getElementById('lockError');
+  const keypad = document.getElementById('keypad');
+  
+  let isUnlocked = false;
+  let isVerifying = false;
+
+  // ===== CALCOLA HASH SHA-256 =====
+  async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // ===== VERIFICA PIN =====
+  async function verifyPin(pin) {
+    if (isVerifying) return;
+    isVerifying = true;
+    
+    const hash = await sha256(pin);
+    
+    if (hash === CORRECT_PIN_HASH) {
+      unlockApp();
+    } else {
+      showError();
+    }
+    
+    isVerifying = false;
+  }
+
+  // ===== AGGIORNA DISPLAY PIN =====
+  function updatePinDisplay() {
+    pinDots.forEach((dot, i) => {
+      dot.classList.toggle('filled', i < pinInput.length);
+      dot.classList.remove('error');
+    });
+  }
+
+  // ===== MOSTRA ERRORE =====
+  function showError() {
+    lockError.classList.add('visible');
+    pinDots.forEach(dot => {
+      dot.classList.add('error');
+      dot.classList.remove('filled');
+    });
+    
+    setTimeout(() => {
+      pinInput = '';
+      updatePinDisplay();
+      lockError.classList.remove('visible');
+    }, 600);
+  }
+
+  // ===== SBLOCCA APP =====
+  function unlockApp() {
+    isUnlocked = true;
+    lockScreen.classList.add('unlocked');
+    
+    setTimeout(() => {
+      // Rimuovi completamente la lock screen dal DOM per sicurezza
+      if (lockScreen.parentNode) {
+        lockScreen.parentNode.removeChild(lockScreen);
+      }
+      mainApp.classList.add('visible');
+      
+      // Blocca il tasto indietro del browser
+      history.pushState(null, '', location.href);
+      window.onpopstate = function() {
+        history.go(1);
+      };
+    }, 400);
+  }
+
+  // ===== GESTIONE KEYPAD =====
+  keypad.addEventListener('click', (e) => {
+    if (isUnlocked || isVerifying) return;
+    
+    const key = e.target.closest('.key');
+    if (!key || key.classList.contains('empty')) return;
+    
+    if (key.id === 'deleteKey') {
+      pinInput = pinInput.slice(0, -1);
+      updatePinDisplay();
+      return;
+    }
+    
+    const num = key.dataset.num;
+    if (num !== undefined && pinInput.length < 4) {
+      pinInput += num;
+      updatePinDisplay();
+      
+      // Feedback aptico su mobile
+      if (navigator.vibrate) navigator.vibrate(15);
+      
+      if (pinInput.length === 4) {
+        setTimeout(() => verifyPin(pinInput), 200);
+      }
+    }
+  });
+
+  // ===== SUPPORTO TASTIERA FISICA =====
+  document.addEventListener('keydown', (e) => {
+    if (isUnlocked || isVerifying) return;
+    
+    if (e.key >= '0' && e.key <= '9' && pinInput.length < 4) {
+      pinInput += e.key;
+      updatePinDisplay();
+      
+      if (pinInput.length === 4) {
+        setTimeout(() => verifyPin(pinInput), 200);
+      }
+    } else if (e.key === 'Backspace') {
+      pinInput = pinInput.slice(0, -1);
+      updatePinDisplay();
+    } else if (e.key === 'Enter' && pinInput.length === 4) {
+      verifyPin(pinInput);
+    }
+  });
+
+  // ===== PROTEZIONI DI SICUREZZA (Dissuasori) =====
+  
+  // 1. Blocco tasto destro
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  
+  // 2. Blocco scorciatoie DevTools
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F12') e.preventDefault();
+    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) e.preventDefault();
+    if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) e.preventDefault();
+    if (e.metaKey && e.altKey && (e.key === 'I' || e.key === 'U')) e.preventDefault(); // Mac
+  });
+
+  // 3. Blocco selezione testo sulla lock screen
+  document.addEventListener('selectstart', (e) => {
+    if (!isUnlocked) e.preventDefault();
+  });
+
+  // 4. Blocco copia/incolla sulla lock screen
+  document.addEventListener('copy', (e) => { if (!isUnlocked) e.preventDefault(); });
+  document.addEventListener('cut', (e) => { if (!isUnlocked) e.preventDefault(); });
+  document.addEventListener('paste', (e) => { if (!isUnlocked) e.preventDefault(); });
+
+  // ===== GESTIONE RICERCA =====
+  document.getElementById('startSearch').addEventListener('click', () => {
+    const category = document.getElementById('category').value.trim();
+    const city = document.getElementById('city').value.trim();
+    
+    if (!category || !city) {
+      alert('⚠️ Per favore compila entrambi i campi (Categoria e Città).');
+      return;
+    }
+    
+    // Qui potrai inserire la logica reale di chiamata API o redirect
+    alert(`✅ Ricerca avviata per:\n\n📌 Categoria: ${category}\n📍 Città: ${city}\n\nI risultati verranno salvati nel Google Sheet collegato.`);
+  });
+
+  // ===== PREVENI ABUSO DEL TASTO INDIETRO DEL BROWSER =====
+  history.pushState(null, '', location.href);
+  window.addEventListener('popstate', () => {
+    if (!isUnlocked) {
+      history.pushState(null, '', location.href);
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
